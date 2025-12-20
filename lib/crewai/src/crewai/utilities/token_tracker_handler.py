@@ -117,11 +117,9 @@ class CrewTokenTracker:
 
     def get_metrics(self) -> WorkflowTokenMetrics:
         """Get current workflow metrics."""
+        from copy import deepcopy
         with self._lock:
-            # Return a copy or the object itself.
-            # Since we are mostly appending, returning the object is risky if mutated outside lock,
-            # but for reporting it might be fine.
-            return self._metrics
+            return deepcopy(self._metrics)
 
     def reset(self):
         """Reset all metrics."""

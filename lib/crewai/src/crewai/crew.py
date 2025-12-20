@@ -1392,27 +1392,14 @@ class Crew(FlowTrackable, BaseModel):
         self.token_usage = self.calculate_usage_metrics()
         self.token_metrics = self._token_tracker.get_metrics()
 
-        # Update task outputs with specific metrics if available
-        if self.token_metrics and self.token_metrics.per_task:
-            for t_out in task_outputs:
-                task_key = f"{t_out.description[:50]}_{t_out.agent}" # Need to match key generation in token_tracker_handler.py
-                # Re-constructing key might be fragile. Better to rely on Task object if possible,
-                # but TaskOutput doesn't hold reference to Task object directly in attributes (only description).
-                # Actually, in _execute_tasks loop, we have task and task_output.
-                # But here we only have task_outputs list.
-                # Let's try to match by description and agent.
-                # In token_tracker_handler.py, I used `task_key = f"{task_name}_{agent_name}"`.
-                # If I pass task.description as task_name, then it should match.
-                # I should update TaskOutput first.
-                pass
-
         # We can iterate over task_outputs and try to find matching metrics
-        for t_out in task_outputs:
-             # This is a best-effort matching since we don't have the task object here easily mapped
-             # We truncate the description to 50 chars to match the key generation in BaseLLM
-             task_key = f"{t_out.description[:50]}_{t_out.agent}"
-             if task_key in self.token_metrics.per_task:
-                 t_out.token_metrics = self.token_metrics.per_task[task_key]
+        if self.token_metrics:
+            for t_out in task_outputs:
+                # This is a best-effort matching since we don't have the task object here easily mapped
+                # We truncate the description to 50 chars to match the key generation in BaseLLM
+                task_key = f"{t_out.description[:50]}_{t_out.agent}"
+                if task_key in self.token_metrics.per_task:
+                    t_out.token_metrics = self.token_metrics.per_task[task_key]
 
         crewai_event_bus.emit(
             self,
