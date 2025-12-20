@@ -778,7 +778,9 @@ class GeminiCompletion(BaseLLM):
                 raise LLMContextLengthExceededError(str(e)) from e
             raise e from e
 
-        self._track_token_usage_internal(usage)
+        self._track_token_usage_internal(
+            usage, from_task=from_task, from_agent=from_agent
+        )
 
         return self._process_response_with_tools(
             response=response,
@@ -856,7 +858,9 @@ class GeminiCompletion(BaseLLM):
                 raise LLMContextLengthExceededError(str(e)) from e
             raise e from e
 
-        self._track_token_usage_internal(usage)
+        self._track_token_usage_internal(
+            usage, from_task=from_task, from_agent=from_agent
+        )
 
         return self._process_response_with_tools(
             response=response,

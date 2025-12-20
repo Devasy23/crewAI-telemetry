@@ -546,11 +546,18 @@ class BaseLLM(ABC):
             return model.partition("/")[0]
         return "openai"  # Default provider
 
-    def _track_token_usage_internal(self, usage_data: dict[str, Any]) -> None:
+    def _track_token_usage_internal(
+        self,
+        usage_data: dict[str, Any],
+        from_task: Task | None = None,
+        from_agent: Agent | None = None,
+    ) -> None:
         """Track token usage internally in the LLM instance.
 
         Args:
             usage_data: Token usage data from the API response
+            from_task: Task context for tracking
+            from_agent: Agent context for tracking
         """
         # Extract tokens in a provider-agnostic way
         prompt_tokens = (
@@ -578,6 +585,23 @@ class BaseLLM(ABC):
         self._token_usage["total_tokens"] += prompt_tokens + completion_tokens
         self._token_usage["successful_requests"] += 1
         self._token_usage["cached_prompt_tokens"] += cached_tokens
+
+        # Track usage in the crew tracker if available
+        if from_agent and hasattr(from_agent, "crew") and from_agent.crew:
+            crew = from_agent.crew
+            if hasattr(crew, "_token_tracker"):
+                task_name = from_task.description[:50] if from_task else "Unknown Task"
+                # Use a cleaner task name if available (e.g. title or name field if it existed)
+                # But we agreed on description[:50] or similar for keying.
+
+                crew._token_tracker.record_llm_call(
+                    agent_name=from_agent.role,
+                    task_name=task_name,
+                    model=self.model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    call_type="generation",
+                )
 
     def get_token_usage_summary(self) -> UsageMetrics:
         """Get summary of token usage for this LLM instance.

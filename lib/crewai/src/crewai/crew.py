@@ -85,6 +85,7 @@ from crewai.types.streaming import CrewStreamingOutput
 from crewai.types.usage_metrics import UsageMetrics
 from crewai.utilities.constants import NOT_SPECIFIED, TRAINING_DATA_FILE
 from crewai.utilities.crew.models import CrewContext
+from crewai.utilities.token_tracker_handler import CrewTokenTracker, WorkflowTokenMetrics
 from crewai.utilities.evaluators.crew_evaluator_handler import CrewEvaluator
 from crewai.utilities.evaluators.task_evaluator import TaskEvaluator
 from crewai.utilities.file_handler import FileHandler
@@ -299,6 +300,10 @@ class Crew(FlowTrackable, BaseModel):
         default=None,
         description="Metrics for the LLM usage during all tasks execution.",
     )
+    token_metrics: WorkflowTokenMetrics | None = Field(
+        default=None,
+        description="Detailed per-agent and per-task token metrics.",
+    )
     tracing: bool | None = Field(
         default=None,
         description="Whether to enable tracing for the crew. True=always enable, False=always disable, None=check environment/user settings.",
@@ -349,6 +354,8 @@ class Crew(FlowTrackable, BaseModel):
         self._rpm_controller = RPMController(max_rpm=self.max_rpm, logger=self._logger)
         if self.function_calling_llm and not isinstance(self.function_calling_llm, LLM):
             self.function_calling_llm = create_llm(self.function_calling_llm)
+
+        self._token_tracker = CrewTokenTracker()
 
         return self
 
@@ -1383,6 +1390,30 @@ class Crew(FlowTrackable, BaseModel):
         final_string_output = final_task_output.raw
         self._finish_execution(final_string_output)
         self.token_usage = self.calculate_usage_metrics()
+        self.token_metrics = self._token_tracker.get_metrics()
+
+        # Update task outputs with specific metrics if available
+        if self.token_metrics and self.token_metrics.per_task:
+            for t_out in task_outputs:
+                task_key = f"{t_out.description[:50]}_{t_out.agent}" # Need to match key generation in token_tracker_handler.py
+                # Re-constructing key might be fragile. Better to rely on Task object if possible,
+                # but TaskOutput doesn't hold reference to Task object directly in attributes (only description).
+                # Actually, in _execute_tasks loop, we have task and task_output.
+                # But here we only have task_outputs list.
+                # Let's try to match by description and agent.
+                # In token_tracker_handler.py, I used `task_key = f"{task_name}_{agent_name}"`.
+                # If I pass task.description as task_name, then it should match.
+                # I should update TaskOutput first.
+                pass
+
+        # We can iterate over task_outputs and try to find matching metrics
+        for t_out in task_outputs:
+             # This is a best-effort matching since we don't have the task object here easily mapped
+             # We truncate the description to 50 chars to match the key generation in BaseLLM
+             task_key = f"{t_out.description[:50]}_{t_out.agent}"
+             if task_key in self.token_metrics.per_task:
+                 t_out.token_metrics = self.token_metrics.per_task[task_key]
+
         crewai_event_bus.emit(
             self,
             CrewKickoffCompletedEvent(
@@ -1401,6 +1432,7 @@ class Crew(FlowTrackable, BaseModel):
             json_dict=final_task_output.json_dict,
             tasks_output=task_outputs,
             token_usage=self.token_usage,
+            token_metrics=self.token_metrics,
         )
 
     def _process_async_tasks(

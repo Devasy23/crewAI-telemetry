@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from crewai.tasks.output_format import OutputFormat
 from crewai.tasks.task_output import TaskOutput
 from crewai.types.usage_metrics import UsageMetrics
+from crewai.utilities.token_tracker_handler import WorkflowTokenMetrics
 
 
 class CrewOutput(BaseModel):
@@ -25,6 +26,9 @@ class CrewOutput(BaseModel):
     )
     token_usage: UsageMetrics = Field(
         description="Processed token summary", default_factory=UsageMetrics
+    )
+    token_metrics: WorkflowTokenMetrics | None = Field(
+        description="Detailed per-agent and per-task token metrics.", default=None
     )
 
     @property
