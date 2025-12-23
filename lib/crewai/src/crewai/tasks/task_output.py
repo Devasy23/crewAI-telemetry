@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from crewai.tasks.output_format import OutputFormat
 from crewai.utilities.types import LLMMessage
+from crewai.utilities.token_tracker_handler import TaskTokenMetrics
 
 
 class TaskOutput(BaseModel):
@@ -42,6 +43,9 @@ class TaskOutput(BaseModel):
         description="Output format of the task", default=OutputFormat.RAW
     )
     messages: list[LLMMessage] = Field(description="Messages of the task", default=[])
+    token_metrics: TaskTokenMetrics | None = Field(
+        description="Token metrics for this specific task execution.", default=None
+    )
 
     @model_validator(mode="after")
     def set_summary(self):
